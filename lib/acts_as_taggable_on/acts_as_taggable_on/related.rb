@@ -44,9 +44,9 @@ module ActsAsTaggableOn::Taggable
       def matching_contexts_for(search_context, result_context, klass, options = {})
         tags_to_find = tags_on(search_context).collect { |t| t.name }
 
-        klass.select("#{klass.table_name}.*, COUNT(#{ActsAsTaggableOn::Tag.table_name}.#{ActsAsTaggableOn::Tag.primary_key}) AS count") \
-             .from("#{klass.table_name}, #{ActsAsTaggableOn::Tag.table_name}, #{ActsAsTaggableOn::Tagging.table_name}") \
-             .where(["#{exclude_self(klass, id)} #{klass.table_name}.#{klass.primary_key} = #{ActsAsTaggableOn::Tagging.table_name}.taggable_id AND #{ActsAsTaggableOn::Tagging.table_name}.taggable_type = '#{klass.base_class.to_s}' AND #{ActsAsTaggableOn::Tagging.table_name}.tag_id = #{ActsAsTaggableOn::Tag.table_name}.#{ActsAsTaggableOn::Tag.primary_key} AND #{ActsAsTaggableOn::Tag.table_name}.name IN (?) AND #{ActsAsTaggableOn::Tagging.table_name}.context = ?", tags_to_find, result_context]) \
+        klass.select("#{klass.quoted_table_name}.*, COUNT(#{ActsAsTaggableOn::Tag.quoted_table_name}.#{ActsAsTaggableOn::Tag.primary_key}) AS count") \
+             .from("#{klass.quoted_table_name}, #{ActsAsTaggableOn::Tag.quoted_table_name}, #{ActsAsTaggableOn::Tagging.quoted_table_name}") \
+             .where(["#{exclude_self(klass, id)} #{klass.quoted_table_name}.#{klass.primary_key} = #{ActsAsTaggableOn::Tagging.quoted_table_name}.taggable_id AND #{ActsAsTaggableOn::Tagging.quoted_table_name}.taggable_type = '#{klass.base_class.to_s}' AND #{ActsAsTaggableOn::Tagging.quoted_table_name}.tag_id = #{ActsAsTaggableOn::Tag.quoted_table_name}.#{ActsAsTaggableOn::Tag.primary_key} AND #{ActsAsTaggableOn::Tag.quoted_table_name}.name IN (?) AND #{ActsAsTaggableOn::Tagging.quoted_table_name}.context = ?", tags_to_find, result_context]) \
              .group(group_columns(klass)) \
              .order("count DESC")
       end
@@ -55,9 +55,9 @@ module ActsAsTaggableOn::Taggable
 				tags_to_ignore = Array.wrap(options.delete(:ignore)).map(&:to_s) || []
         tags_to_find = tags_on(context).collect { |t| t.name }.reject { |t| tags_to_ignore.include? t }
 
-        klass.select("#{klass.table_name}.*, COUNT(#{ActsAsTaggableOn::Tag.table_name}.#{ActsAsTaggableOn::Tag.primary_key}) AS count") \
-             .from("#{klass.table_name}, #{ActsAsTaggableOn::Tag.table_name}, #{ActsAsTaggableOn::Tagging.table_name}") \
-             .where(["#{exclude_self(klass, id)} #{klass.table_name}.#{klass.primary_key} = #{ActsAsTaggableOn::Tagging.table_name}.taggable_id AND #{ActsAsTaggableOn::Tagging.table_name}.taggable_type = '#{klass.base_class.to_s}' AND #{ActsAsTaggableOn::Tagging.table_name}.tag_id = #{ActsAsTaggableOn::Tag.table_name}.#{ActsAsTaggableOn::Tag.primary_key} AND #{ActsAsTaggableOn::Tag.table_name}.name IN (?)", tags_to_find]) \
+        klass.select("#{klass.quoted_table_name}.*, COUNT(#{ActsAsTaggableOn::Tag.quoted_table_name}.#{ActsAsTaggableOn::Tag.primary_key}) AS count") \
+             .from("#{klass.quoted_table_name}, #{ActsAsTaggableOn::Tag.quoted_table_name}, #{ActsAsTaggableOn::Tagging.quoted_table_name}") \
+             .where(["#{exclude_self(klass, id)} #{klass.quoted_table_name}.#{klass.primary_key} = #{ActsAsTaggableOn::Tagging.quoted_table_name}.taggable_id AND #{ActsAsTaggableOn::Tagging.quoted_table_name}.taggable_type = '#{klass.base_class.to_s}' AND #{ActsAsTaggableOn::Tagging.quoted_table_name}.tag_id = #{ActsAsTaggableOn::Tag.quoted_table_name}.#{ActsAsTaggableOn::Tag.primary_key} AND #{ActsAsTaggableOn::Tag.quoted_table_name}.name IN (?)", tags_to_find]) \
              .group(group_columns(klass)) \
              .order("count DESC")
       end
@@ -66,7 +66,7 @@ module ActsAsTaggableOn::Taggable
       
       def exclude_self(klass, id)
         if [self.class.base_class, self.class].include? klass
-          "#{klass.table_name}.#{klass.primary_key} != #{id} AND" 
+          "#{klass.quoted_table_name}.#{klass.primary_key} != #{id} AND"
         else
           nil
         end
@@ -76,7 +76,7 @@ module ActsAsTaggableOn::Taggable
         if ActsAsTaggableOn::Tag.using_postgresql? 
           grouped_column_names_for(klass)
         else
-          "#{klass.table_name}.#{klass.primary_key}"
+          "#{klass.quoted_table_name}.#{klass.primary_key}"
         end
       end
     end

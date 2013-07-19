@@ -20,7 +20,7 @@ module ActsAsTaggableOn::Taggable
           tag_type         = tags_type.to_s.singularize
           context_taggings = "#{tag_type}_taggings".to_sym
           context_tags     = tags_type.to_sym
-          taggings_order   = (preserve_tag_order? ? "#{ActsAsTaggableOn::Tagging.table_name}.id" : [])
+          taggings_order   = (preserve_tag_order? ? "#{ActsAsTaggableOn::Tagging.quoted_table_name}.id" : [])
 
           class_eval do
             # when preserving tag order, include order option so that for a 'tags' context
@@ -29,7 +29,7 @@ module ActsAsTaggableOn::Taggable
                                         :dependent => :destroy,
                                         :class_name => "ActsAsTaggableOn::Tagging",
                                         :order => taggings_order,
-                                        :conditions => ["#{ActsAsTaggableOn::Tagging.table_name}.context = (?)", tags_type],
+                                        :conditions => ["#{ActsAsTaggableOn::Tagging.quoted_table_name}.context = (?)", tags_type],
                                         :include => :tag
 
             has_many_with_compatibility context_tags, :through => context_taggings,
@@ -62,7 +62,7 @@ module ActsAsTaggableOn::Taggable
 
       # all column names are necessary for PostgreSQL group clause
       def grouped_column_names_for(object)
-        object.column_names.map { |column| "#{object.table_name}.#{column}" }.join(", ")
+        object.column_names.map { |column| "#{object.quoted_table_name}.#{column}" }.join(", ")
       end
 
       ##
@@ -99,19 +99,19 @@ module ActsAsTaggableOn::Taggable
 
         if options.delete(:exclude)
           if options.delete(:wild)
-            tags_conditions = tag_list.map { |t| sanitize_sql(["#{ActsAsTaggableOn::Tag.table_name}.name #{like_operator} ? ESCAPE '!'", "%#{escape_like(t)}%"]) }.join(" OR ")
+            tags_conditions = tag_list.map { |t| sanitize_sql(["#{ActsAsTaggableOn::Tag.quoted_table_name}.name #{like_operator} ? ESCAPE '!'", "%#{escape_like(t)}%"]) }.join(" OR ")
           else
-            tags_conditions = tag_list.map { |t| sanitize_sql(["#{ActsAsTaggableOn::Tag.table_name}.name #{like_operator} ?", t]) }.join(" OR ")
+            tags_conditions = tag_list.map { |t| sanitize_sql(["#{ActsAsTaggableOn::Tag.quoted_table_name}.name #{like_operator} ?", t]) }.join(" OR ")
           end
 
-          conditions << "#{table_name}.#{primary_key} NOT IN (SELECT #{ActsAsTaggableOn::Tagging.table_name}.taggable_id FROM #{ActsAsTaggableOn::Tagging.table_name} JOIN #{ActsAsTaggableOn::Tag.table_name} ON #{ActsAsTaggableOn::Tagging.table_name}.tag_id = #{ActsAsTaggableOn::Tag.table_name}.#{ActsAsTaggableOn::Tag.primary_key} AND (#{tags_conditions}) WHERE #{ActsAsTaggableOn::Tagging.table_name}.taggable_type = #{quote_value(base_class.name)})"
+          conditions << "#{quoted_table_name}.#{primary_key} NOT IN (SELECT #{ActsAsTaggableOn::Tagging.quoted_table_name}.taggable_id FROM #{ActsAsTaggableOn::Tagging.quoted_table_name} JOIN #{ActsAsTaggableOn::Tag.quoted_table_name} ON #{ActsAsTaggableOn::Tagging.quoted_table_name}.tag_id = #{ActsAsTaggableOn::Tag.quoted_table_name}.#{ActsAsTaggableOn::Tag.primary_key} AND (#{tags_conditions}) WHERE #{ActsAsTaggableOn::Tagging.quoted_table_name}.taggable_type = #{quote_value(base_class.name)})"
 
           if owned_by
-            joins <<  "JOIN #{ActsAsTaggableOn::Tagging.table_name}" +
-                      "  ON #{ActsAsTaggableOn::Tagging.table_name}.taggable_id = #{quote}#{table_name}#{quote}.#{primary_key}" +
-                      " AND #{ActsAsTaggableOn::Tagging.table_name}.taggable_type = #{quote_value(base_class.name)}" +
-                      " AND #{ActsAsTaggableOn::Tagging.table_name}.tagger_id = #{owned_by.id}" +
-                      " AND #{ActsAsTaggableOn::Tagging.table_name}.tagger_type = #{quote_value(owned_by.class.base_class.to_s)}"
+            joins <<  "JOIN #{ActsAsTaggableOn::Tagging.quoted_table_name}" +
+                      "  ON #{ActsAsTaggableOn::Tagging.quoted_table_name}.taggable_id = #{quoted_table_name}.#{primary_key}" +
+                      " AND #{ActsAsTaggableOn::Tagging.quoted_table_name}.taggable_type = #{quote_value(base_class.name)}" +
+                      " AND #{ActsAsTaggableOn::Tagging.quoted_table_name}.tagger_id = #{owned_by.id}" +
+                      " AND #{ActsAsTaggableOn::Tagging.quoted_table_name}.tagger_type = #{quote_value(owned_by.class.base_class.to_s)}"
           end
 
         elsif options.delete(:any)
@@ -131,15 +131,15 @@ module ActsAsTaggableOn::Taggable
           taggings_alias   = adjust_taggings_alias(
             "#{alias_base_name[0..4]}#{taggings_context[0..6]}_taggings_#{sha_prefix(tags.map(&:name).join('_'))}"
           )
-
-          tagging_join  = "JOIN #{ActsAsTaggableOn::Tagging.table_name} #{taggings_alias}" +
-                          "  ON #{taggings_alias}.taggable_id = #{quote}#{table_name}#{quote}.#{primary_key}" +
+          # TODO bad
+          tagging_join  = "JOIN #{ActsAsTaggableOn::Tagging.quoted_table_name} #{taggings_alias}" +
+                          "  ON #{taggings_alias}.taggable_id = #{quoted_table_name}.#{primary_key}" +
                           " AND #{taggings_alias}.taggable_type = #{quote_value(base_class.name)}"
           tagging_join << " AND " + sanitize_sql(["#{taggings_alias}.context = ?", context.to_s]) if context
 
           # don't need to sanitize sql, map all ids and join with OR logic
           conditions << tags.map { |t| "#{taggings_alias}.tag_id = #{t.id}" }.join(" OR ")
-          select_clause = "DISTINCT #{table_name}.*" unless context and tag_types.one?
+          select_clause = "DISTINCT #{quoted_table_name}.*" unless context and tag_types.one?
 
           if owned_by
               tagging_join << " AND " +
@@ -158,8 +158,8 @@ module ActsAsTaggableOn::Taggable
 
           tags.each do |tag|
             taggings_alias = adjust_taggings_alias("#{alias_base_name[0..11]}_taggings_#{sha_prefix(tag.name)}")
-            tagging_join  = "JOIN #{ActsAsTaggableOn::Tagging.table_name} #{taggings_alias}" +
-                            "  ON #{taggings_alias}.taggable_id = #{quote}#{table_name}#{quote}.#{primary_key}" +
+            tagging_join  = "JOIN #{ActsAsTaggableOn::Tagging.quoted_table_name} #{taggings_alias}" +
+                            "  ON #{taggings_alias}.taggable_id = #{quoted_table_name}.#{primary_key}" +
                             " AND #{taggings_alias}.taggable_type = #{quote_value(base_class.name)}" +
                             " AND #{taggings_alias}.tag_id = #{tag.id}"
 
@@ -181,12 +181,12 @@ module ActsAsTaggableOn::Taggable
         taggings_alias, tags_alias = adjust_taggings_alias("#{alias_base_name}_taggings_group"), "#{alias_base_name}_tags_group"
 
         if options.delete(:match_all)
-          joins << "LEFT OUTER JOIN #{ActsAsTaggableOn::Tagging.table_name} #{taggings_alias}" +
-                   "  ON #{taggings_alias}.taggable_id = #{quote}#{table_name}#{quote}.#{primary_key}" +
+          joins << "LEFT OUTER JOIN #{ActsAsTaggableOn::Tagging.quoted_table_name} #{taggings_alias}" +
+                   "  ON #{taggings_alias}.taggable_id = #{quoted_table_name}.#{primary_key}" +
                    " AND #{taggings_alias}.taggable_type = #{quote_value(base_class.name)}"
 
 
-          group_columns = ActsAsTaggableOn::Tag.using_postgresql? ? grouped_column_names_for(self) : "#{table_name}.#{primary_key}"
+          group_columns = ActsAsTaggableOn::Tag.using_postgresql? ? grouped_column_names_for(self) : "#{quoted_table_name}.#{primary_key}"
           group = group_columns
           having = "COUNT(#{taggings_alias}.taggable_id) = #{tags.size}"
         end
@@ -269,8 +269,8 @@ module ActsAsTaggableOn::Taggable
       ##
       # Returns all tags of a given context
       def all_tags_on(context)
-        tag_table_name = ActsAsTaggableOn::Tag.table_name
-        tagging_table_name = ActsAsTaggableOn::Tagging.table_name
+        tag_table_name = ActsAsTaggableOn::Tag.quoted_table_name
+        tagging_table_name = ActsAsTaggableOn::Tagging.quoted_table_name
 
         opts  =  ["#{tagging_table_name}.context = ?", context.to_s]
         scope = base_tags.where(opts)
@@ -279,17 +279,17 @@ module ActsAsTaggableOn::Taggable
           group_columns = grouped_column_names_for(ActsAsTaggableOn::Tag)
           scope.order("max(#{tagging_table_name}.created_at)").group(group_columns)
         else
-          scope.group("#{ActsAsTaggableOn::Tag.table_name}.#{ActsAsTaggableOn::Tag.primary_key}")
+          scope.group("#{ActsAsTaggableOn::Tag.quoted_table_name}.#{ActsAsTaggableOn::Tag.primary_key}")
         end.to_a
       end
 
       ##
       # Returns all tags that are not owned of a given context
       def tags_on(context)
-        scope = base_tags.where(["#{ActsAsTaggableOn::Tagging.table_name}.context = ? AND #{ActsAsTaggableOn::Tagging.table_name}.tagger_id IS NULL", context.to_s])
+        scope = base_tags.where(["#{ActsAsTaggableOn::Tagging.quoted_table_name}.context = ? AND #{ActsAsTaggableOn::Tagging.quoted_table_name}.tagger_id IS NULL", context.to_s])
         # when preserving tag order, return tags in created order
         # if we added the order to the association this would always apply
-        scope = scope.order("#{ActsAsTaggableOn::Tagging.table_name}.id") if self.class.preserve_tag_order?
+        scope = scope.order("#{ActsAsTaggableOn::Tagging.quoted_table_name}.id") if self.class.preserve_tag_order?
         scope
       end
 

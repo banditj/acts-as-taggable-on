@@ -31,17 +31,17 @@ module ActsAsTaggableOn::Taggable
     module InstanceMethods
       def owner_tags_on(owner, context)
         if owner.nil?
-          scope = base_tags.where([%(#{ActsAsTaggableOn::Tagging.table_name}.context = ?), context.to_s])                    
+          scope = base_tags.where([%(#{ActsAsTaggableOn::Tagging.quoted_table_name}.context = ?), context.to_s])
         else
-          scope = base_tags.where([%(#{ActsAsTaggableOn::Tagging.table_name}.context = ? AND
-                                     #{ActsAsTaggableOn::Tagging.table_name}.tagger_id = ? AND
-                                     #{ActsAsTaggableOn::Tagging.table_name}.tagger_type = ?), context.to_s, owner.id, owner.class.base_class.to_s])          
+          scope = base_tags.where([%(#{ActsAsTaggableOn::Tagging.quoted_table_name}.context = ? AND
+                                     #{ActsAsTaggableOn::Tagging.quoted_table_name}.tagger_id = ? AND
+                                     #{ActsAsTaggableOn::Tagging.quoted_table_name}.tagger_type = ?), context.to_s, owner.id, owner.class.base_class.to_s])
         end
 
         # when preserving tag order, return tags in created order
         # if we added the order to the association this would always apply
         if self.class.preserve_tag_order?
-          scope.order("#{ActsAsTaggableOn::Tagging.table_name}.id")
+          scope.order("#{ActsAsTaggableOn::Tagging.quoted_table_name}.id")
         else 
           scope
         end
