@@ -128,9 +128,9 @@ module ActsAsTaggableOn::Taggable
           # avoid ambiguous column name
           taggings_context = context ? "_#{context}" : ''
 
-          taggings_alias   = adjust_taggings_alias(
+          taggings_alias   = ::ActiveRecord::Base.connection.quote_table_name(adjust_taggings_alias(
             "#{alias_base_name[0..4]}#{taggings_context[0..6]}_taggings_#{sha_prefix(tags.map(&:name).join('_'))}"
-          )
+          ))
           # TODO bad
           tagging_join  = "JOIN #{ActsAsTaggableOn::Tagging.quoted_table_name} #{taggings_alias}" +
                           "  ON #{taggings_alias}.taggable_id = #{quoted_table_name}.#{primary_key}" +
@@ -157,7 +157,7 @@ module ActsAsTaggableOn::Taggable
           return empty_result unless tags.length == tag_list.length
 
           tags.each do |tag|
-            taggings_alias = adjust_taggings_alias("#{alias_base_name[0..11]}_taggings_#{sha_prefix(tag.name)}")
+            taggings_alias = ::ActiveRecord::Base.connection.quote_table_name(adjust_taggings_alias("#{alias_base_name[0..11]}_taggings_#{sha_prefix(tag.name)}"))
             tagging_join  = "JOIN #{ActsAsTaggableOn::Tagging.quoted_table_name} #{taggings_alias}" +
                             "  ON #{taggings_alias}.taggable_id = #{quoted_table_name}.#{primary_key}" +
                             " AND #{taggings_alias}.taggable_type = #{quote_value(base_class.name)}" +
@@ -178,7 +178,7 @@ module ActsAsTaggableOn::Taggable
           end
         end
 
-        taggings_alias, tags_alias = adjust_taggings_alias("#{alias_base_name}_taggings_group"), "#{alias_base_name}_tags_group"
+        taggings_alias, tags_alias = ::ActiveRecord::Base.connection.quote_table_name(adjust_taggings_alias("#{alias_base_name}_taggings_group"), "#{alias_base_name}_tags_group")
 
         if options.delete(:match_all)
           joins << "LEFT OUTER JOIN #{ActsAsTaggableOn::Tagging.quoted_table_name} #{taggings_alias}" +
